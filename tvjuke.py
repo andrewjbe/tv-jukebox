@@ -7,8 +7,8 @@ import threading
 from evdev import InputDevice, categorize, ecodes
 
 # --- CONFIGURATION ---
-WELCOME_DIR = "/home/liliana-tv/welcome-videos"
-SHOWS_DIR = "/home/liliana-tv/shows"
+WELCOME_DIR = "./welcome-videos"
+SHOWS_DIR = "./shows"
 INPUT_DEVICE_PATH = "/dev/input/event0"  # Adjust as needed
 
 KEY_MAP = {
