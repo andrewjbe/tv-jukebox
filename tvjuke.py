@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import sys
 import random
 import subprocess
 import time
@@ -8,20 +9,21 @@ import pathlib
 from evdev import InputDevice, categorize, ecodes
 
 # --- CONFIGURATION ---
-CURRENT_DIR = pathlib.Path(__file__).parent.resolve()
+# CURRENT_DIR = pathlib.Path(__file__).parent.resolve()
+CURRENT_DIR = pathlib.Path.cwd()
 WELCOME_DIR = CURRENT_DIR / "welcome-videos"
 SHOWS_DIR = CURRENT_DIR / "shows"
-INPUT_DEVICE_PATH = "/dev/input/event0"  # Adjust as needed
+INPUT_DEVICE_PATH = "/dev/input/event0"
 
 KEY_MAP = {
-    2: "The Simpsons",
-    3: "King of the Hill",
-    4: "Cheers",
-    5: "Sex and the City",
-    6: "SKIP",
-    7: "The Nanny",
-    8: "It's Always Sunny in Philadelphia",
-    9: "Seinfeld"
+    2: {"short": "The Simpsons", "long": "Futurama"},
+    3: {"short": "King of the Hill", "long": "American Dad"},
+    4: {"short": "Cheers", "long": "MASH"},
+    5: {"short": "Sex and the City", "long": "Joe Pera Talks to You"},
+    6: "SKIP",  # This is a seperate thing
+    7: {"short": "Music", "long": "Documentaries"},
+    8: {"short": "Jeopardy", "long": "Match Game"},
+    9: {"short": "Seinfeld", "long": "It's Always Sunny in Philadelphia"},
 }
 
 SKIP_KEY_CODE = 6
@@ -156,21 +158,27 @@ def monitor_video_end():
             print("Video ended. Starting next episode...")
             next_episode()
 
-def handle_key_press(code):
+def handle_key_press(code, long_press=False):
+    """Handle press selecting short or long show mapping.
+
+    long_press indicates duration exceeded LONG_PRESS_SECONDS threshold (but not LONGER_PRESS_SECONDS).
+    """
     global current_show, shuffle_all, welcome_looping
 
     if code not in KEY_MAP:
         print(f"Unknown key code: {code}")
         return
 
-    key = KEY_MAP[code]
-    print(f"Key pressed: {code} -> {key}")
+    mapping = KEY_MAP[code]
+    if mapping == "SKIP":
+        return  # Skip handled elsewhere
 
-    if key == "SKIP":
-        return  # Skip handled separately
+    # Decide which show based on press duration
+    show = mapping["long" if long_press else "short"]
+    print(f"Key pressed: {code} -> {'LONG' if long_press else 'SHORT'} -> {show}")
 
     welcome_looping = False
-    current_show = key
+    current_show = show
     shuffle_all = False
     next_episode()
 
@@ -187,15 +195,27 @@ def run_jukebox():
     current_show = None
     welcome_looping = True
 
+    # Verify input device presence before proceeding.
+    if not os.path.exists(INPUT_DEVICE_PATH):
+        print(f"WARNING: The input device (with all the buttons) is not detected! Is it plugged in all the way?")
+        return False
+
     start_welcome_loop()
 
     monitor_thread = threading.Thread(target=monitor_video_end, daemon=True)
     monitor_thread.start()
 
-    dev = InputDevice(INPUT_DEVICE_PATH)
+    try:
+        dev = InputDevice(INPUT_DEVICE_PATH)
+    except Exception as e:
+        print(f"WARNING: Unable to open input device '{INPUT_DEVICE_PATH}': {e}. Quitting.")
+        return False
+
     print(f"Listening for input on {INPUT_DEVICE_PATH} ({dev.name})...")
 
     skip_pressed_time = None
+    # store key down times for non-skip keys to measure duration and choose short vs long show
+    key_pressed_times = {}
 
     for event in dev.read_loop():
         if exit_requested:
@@ -204,38 +224,53 @@ def run_jukebox():
             break
 
         if event.type == ecodes.EV_KEY and event.code in KEY_MAP:
-            if event.value == 1:  # Key down
+            # Key down
+            if event.value == 1:
                 if event.code == SKIP_KEY_CODE:
                     skip_pressed_time = time.time()
                 else:
-                    handle_key_press(event.code)
-
-            elif event.value == 0 and event.code == SKIP_KEY_CODE:  # Key up
-                if skip_pressed_time:
-                    duration = time.time() - skip_pressed_time
-                    skip_pressed_time = None
-                    if duration >= LONGER_PRESS_SECONDS:
-                        print("Very long SKIP press — returning to welcome loop.")
-                        shuffle_all = False
-                        current_show = None
-                        exit_requested = True
-                        stop_current_video()
-                    elif duration >= LONG_PRESS_SECONDS:
-                        print("Long SKIP press — shuffle ALL shows.")
-                        shuffle_all = True
-                        current_show = None
-                        welcome_looping = False
-                        next_episode("|SHUFFLE| ALL SHOWS")
-                    else:
-                        if shuffle_all:
+                    key_pressed_times[event.code] = time.time()
+            # Key up
+            elif event.value == 0:
+                # Handle SKIP release logic
+                if event.code == SKIP_KEY_CODE:
+                    if skip_pressed_time:
+                        duration = time.time() - skip_pressed_time
+                        skip_pressed_time = None
+                        if duration >= LONGER_PRESS_SECONDS:
+                            print("Very long SKIP press — returning to welcome loop.")
+                            shuffle_all = False
+                            current_show = None
+                            exit_requested = True
+                            stop_current_video()
+                        elif duration >= LONG_PRESS_SECONDS:
+                            print("Long SKIP press — shuffle ALL shows.")
+                            shuffle_all = True
+                            current_show = None
+                            welcome_looping = False
                             next_episode("|SHUFFLE| ALL SHOWS")
-                        elif current_show:
-                            next_episode(f"|SHUFFLE| {current_show}")
+                        else:
+                            if shuffle_all:
+                                next_episode("|SHUFFLE| ALL SHOWS")
+                            elif current_show:
+                                next_episode(f"|SHUFFLE| {current_show}")
+                else:
+                    # Non-skip key release: determine duration
+                    pressed_time = key_pressed_times.pop(event.code, None)
+                    if pressed_time:
+                        duration = time.time() - pressed_time
+                        long_press = duration >= LONG_PRESS_SECONDS
+                        handle_key_press(event.code, long_press=long_press)
+
+    return True
 
 def main():
     scan_shows()
     while True:
-        run_jukebox()
+        success = run_jukebox()
+        if not success:
+            # Device missing or inaccessible; exit program.
+            sys.exit(1)
         print("Restarting TV Jukebox...")
 
 if __name__ == "__main__":
