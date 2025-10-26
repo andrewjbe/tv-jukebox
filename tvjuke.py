@@ -9,12 +9,15 @@ import pathlib
 from evdev import InputDevice, categorize, ecodes
 
 # --- CONFIGURATION ---
-# CURRENT_DIR = pathlib.Path(__file__).parent.resolve()
-CURRENT_DIR = pathlib.Path.cwd()
+CURRENT_DIR = pathlib.Path(__file__).parent.resolve()
+# CURRENT_DIR = pathlib.Path.cwd()
 WELCOME_DIR = CURRENT_DIR / "welcome-videos"
 ERROR_DIR = CURRENT_DIR / "error-videos"
 SHOWS_DIR = CURRENT_DIR / "shows"
 INPUT_DEVICE_PATH = "/dev/input/event0"
+
+# 9 (1), 8 (2), 7 (3), 6 (SKIP)
+# 5 (4), 4 (5), 3 (6), 2 (7)
 
 KEY_MAP = {
     2: {"short": "The Simpsons", "long": "Futurama"},
