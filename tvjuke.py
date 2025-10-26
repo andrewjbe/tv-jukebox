@@ -12,6 +12,7 @@ from evdev import InputDevice, categorize, ecodes
 # CURRENT_DIR = pathlib.Path(__file__).parent.resolve()
 CURRENT_DIR = pathlib.Path.cwd()
 WELCOME_DIR = CURRENT_DIR / "welcome-videos"
+ERROR_DIR = CURRENT_DIR / "error-videos"
 SHOWS_DIR = CURRENT_DIR / "shows"
 INPUT_DEVICE_PATH = "/dev/input/event0"
 
@@ -118,6 +119,28 @@ def play_video(filepath, osd_message=None, loop=False):
     with process_lock:
         current_process = process
 
+def play_error_video(reason: str):
+    """Play a single error video (if available) with on-screen reason then exit.
+
+    Falls back to printing if no error videos exist.
+    """
+    if not ERROR_DIR.exists():
+        print(f"ERROR (no directory): {reason}")
+        return
+    path = get_random_file(ERROR_DIR)
+    if not path:
+        print(f"ERROR (no videos): {reason}")
+        return
+    print(f"Playing error video: {path} -> {reason}")
+    play_video(path, osd_message=reason, loop=False)
+    # Wait until finished (or terminated)
+    while True:
+        with process_lock:
+            proc = current_process
+        if not proc or proc.poll() is not None:
+            break
+        time.sleep(0.25)
+
 def next_episode(osd=None):
     global current_show, shuffle_all
 
@@ -197,19 +220,23 @@ def run_jukebox():
 
     # Verify input device presence before proceeding.
     if not os.path.exists(INPUT_DEVICE_PATH):
-        print(f"WARNING: The input device (with all the buttons) is not detected! Is it plugged in all the way?")
+        msg = "DEVICE MISSING: Check USB connection"
+        print(f"WARNING: {msg}")
+        play_error_video(msg)
         return False
-
-    start_welcome_loop()
-
-    monitor_thread = threading.Thread(target=monitor_video_end, daemon=True)
-    monitor_thread.start()
 
     try:
         dev = InputDevice(INPUT_DEVICE_PATH)
     except Exception as e:
-        print(f"WARNING: Unable to open input device '{INPUT_DEVICE_PATH}': {e}. Quitting.")
+        msg = f"DEVICE ERROR: {e}"
+        print(f"WARNING: {msg}")
+        play_error_video(msg)
         return False
+
+    # Only start welcome loop and monitor threads after device confirmed.
+    start_welcome_loop()
+    monitor_thread = threading.Thread(target=monitor_video_end, daemon=True)
+    monitor_thread.start()
 
     print(f"Listening for input on {INPUT_DEVICE_PATH} ({dev.name})...")
 
