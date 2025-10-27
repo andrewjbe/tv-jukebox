@@ -4,7 +4,7 @@ import pathlib
 
 # --- CONFIGURATION ---
 CURRENT_DIR = pathlib.Path(__file__).parent.resolve()
-# git CURRENT_DIR = pathlib.Path.cwd()
+# CURRENT_DIR = pathlib.Path.cwd()
 WELCOME_DIR = CURRENT_DIR / "welcome-videos"
 ERROR_DIR = CURRENT_DIR / "error-videos"
 SHOWS_DIR = CURRENT_DIR / "shows"
@@ -32,9 +32,10 @@ for show in sorted(os.listdir(SHOWS_DIR)):
             all_shows[show] = episodes
             total_episodes += len(episodes)
 
-    for show, episodes in all_shows.items():
-        percent = (len(episodes) / total_episodes * 100) if total_episodes else 0
-        print(f"{show}: {len(episodes)} episodes ({percent:.1f}%)")
+# Print summary once after tallying all episodes
+for show, episodes in sorted(all_shows.items()):
+    percent = (len(episodes) / total_episodes * 100) if total_episodes else 0
+    print(f"{show}: {len(episodes)} episodes ({percent:.1f}%)")
 
 print(f"Total episodes: {total_episodes}")
 print("--- END SHOW SCAN ---\n")
