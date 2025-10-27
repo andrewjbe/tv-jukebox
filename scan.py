@@ -15,6 +15,15 @@ print("\n--- SHOWS LOADED ---")
 all_shows = {}
 total_episodes = 0
 
+def get_episodes(show_name):
+    show_path = os.path.join(SHOWS_DIR, show_name)
+    episodes = []
+    for root, dirs, files in os.walk(show_path):
+        for f in files:
+            if f.lower().endswith((".mp4", ".mkv", ".avi")):
+                episodes.append(os.path.join(root, f))
+    return episodes
+
 for show in sorted(os.listdir(SHOWS_DIR)):
     show_path = os.path.join(SHOWS_DIR, show)
     if os.path.isdir(show_path):
