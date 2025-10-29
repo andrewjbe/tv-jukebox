@@ -66,7 +66,7 @@ def scan_shows():
     print("--- END SHOW SCAN ---\n")
 
 def get_random_file(path):
-    files = [f for f in os.listdir(path) if f.lower().endswith((".mp4", ".mkv", ".avi"))]
+    files = [f for f in os.listdir(path) if f.lower().endswith((".mp4", ".mkv", ".avi", ".webm"))]
     return os.path.join(path, random.choice(files)) if files else None
 
 def get_episodes(show_name):

@@ -20,7 +20,7 @@ def get_episodes(show_name):
     episodes = []
     for root, dirs, files in os.walk(show_path):
         for f in files:
-            if f.lower().endswith((".mp4", ".mkv", ".avi")):
+            if f.lower().endswith((".mp4", ".mkv", ".avi", ".webm")):
                 episodes.append(os.path.join(root, f))
     return episodes
 
